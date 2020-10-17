@@ -204,6 +204,7 @@ spec:
         resources:
 {{ toYaml .Values.resources | indent 10 }}
         volumeMounts:
+{{- if not .Values.persistence.dedicatedVolumes }}
         - name: nextcloud-data
           mountPath: /var/www/
           subPath: {{ ternary "root" (printf "%s/%s" .Values.nextcloud.persistence.subPath "root") (empty .Values.nextcloud.persistence.subPath) }}
@@ -225,6 +226,22 @@ spec:
         - name: nextcloud-data
           mountPath: /var/www/html/themes
           subPath: {{ ternary "themes" (printf "%s/%s" .Values.nextcloud.persistence.subPath "themes") (empty .Values.nextcloud.persistence.subPath) }}
+{{- else }}
+        - name: nextcloud-data-root
+          mountPath: /var/www/
+        - name: nextcloud-data-html
+          mountPath: /var/www/html
+        - name: nextcloud-data-data
+          mountPath: {{ .Values.nextcloud.datadir }}
+        - name: nextcloud-data-config
+          mountPath: /var/www/html/config
+        - name: nextcloud-data-custom-apps
+          mountPath: /var/www/html/custom_apps
+        - name: nextcloud-data-tmp
+          mountPath: /var/www/tmp
+        - name: nextcloud-data-themes
+          mountPath: /var/www/html/themes
+{{- end }}
         {{- range $key, $value := .Values.nextcloud.configs }}
         - name: nextcloud-config
           mountPath: /var/www/html/config/{{ $key }}
@@ -324,12 +341,25 @@ spec:
         {{- toYaml . | nindent 8 }}
     {{- end }}
       volumes:
+      {{- if not .Values.persistence.dedicatedVolumes }}
       - name: nextcloud-data
-      {{- if .Values.persistence.enabled }}
+      {{ if .Values.persistence.enabled }}
         persistentVolumeClaim:
           claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}{{- else }}{{ template "nextcloud.fullname" . }}-nextcloud{{- end }}
       {{- else }}
         emptyDir: {}
+      {{- end }}
+      {{- else }}
+      {{- $outer := . -}}
+      {{ range $idx, $volumeName := .Values.persistence.dedicatedVolumesList }}
+      {{ with $outer -}}
+      - name: nextcloud-data-{{ $volumeName }}
+        persistentVolumeClaim:
+          claimName: {{ if .Values.persistence.existingClaim }}{{ .Values.persistence.existingClaim }}-{{ $volumeName }}{{- else }}{{ template "nextcloud.fullname" . }}-nextcloud-{{ $volumeName }}{{- end }}
+      {{- else }}
+        emptyDir: {}
+      {{- end }}
+      {{- end }}
       {{- end }}
       {{- if .Values.nextcloud.configs }}
       - name: nextcloud-config

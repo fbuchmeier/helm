@@ -317,6 +317,27 @@ persistence:
   accessMode: ReadWriteOnce
   size: 8Gi
 
+  # In case you want to use dedicated volumes for each mount point, set this to True
+  # This is useful if you are using hostPath volumes with a dockerized kubelet
+  # https://github.com/rancher/rancher/issues/14836
+  # When using 'existingClaim' with 'dedicatedVolumes: True', a claim with the given name
+  # appended with each entry in 'dedicatedVolumesList' is expected.
+  # For example:
+  #   existingClaim: nextcloud
+  # Required existing claims:
+  # - nextcloud-data
+  # - nextcloud-html
+  # ...
+  dedicatedVolumes: False
+  dedicatedVolumesList:
+    - data
+    - html
+    - config
+    - tmp
+    - themes
+    - root
+    - custom-apps
+
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
