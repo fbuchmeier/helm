@@ -265,6 +265,8 @@ cronjob:
   curlInsecure: false
   failedJobsHistoryLimit: 5
   successfulJobsHistoryLimit: 2
+  # Send the .Values.nextcloud.host as Host header when curl'ing, useful if ingress is handled externally
+  externalHostHeader: false
   # If not set, nextcloud deployment one will be set
   # resources:
     # We usually recommend not to specify default resources and to leave this as a conscious

@@ -56,6 +56,9 @@ spec:
                 - "http://{{ .Values.nextcloud.host }}/cron.php"
               {{- end }}
               {{- else }}
+              {{- if .Values.cronjob.externalHostHeader }}
+                - -H "Host: {{ .Values.nextcloud.host }}"
+              {{- end }}
                 - "http://{{ template "nextcloud.fullname" . }}:{{ .Values.service.port }}/cron.php"
               {{- end }}
               resources:
