@@ -3,13 +3,15 @@
 ##
 image:
   repository: nextcloud
-  tag: 19.0.3-apache
+  # tag: 24.0.3-apache
   pullPolicy: IfNotPresent
   # pullSecrets:
   #   - myRegistrKeySecretName
 
 nameOverride: ""
 fullnameOverride: ""
+podAnnotations: {}
+deploymentAnnotations: {}
 
 # Number of replicas to be deployed
 replicaCount: 1
@@ -19,10 +21,11 @@ replicaCount: 1
 ##
 ingress:
   enabled: false
+  # className: nginx
   annotations: {}
   #  nginx.ingress.kubernetes.io/proxy-body-size: 4G
   #  kubernetes.io/tls-acme: "true"
-  #  certmanager.k8s.io/cluster-issuer: letsencrypt-prod
+  #  cert-manager.io/cluster-issuer: letsencrypt-prod
   #  nginx.ingress.kubernetes.io/server-snippet: |-
   #    server_tokens off;
   #    proxy_hide_header X-Powered-By;
@@ -47,11 +50,13 @@ ingress:
   #    location ~ ^/(?:autotest|occ|issue|indie|db_|console) {
   #      deny all;
   #    }
-  #  tls:
-  #    - secretName: nextcloud-tls
-  #      hosts:
-  #        - nextcloud.kube.home
+  # tls:
+  #   - secretName: nextcloud-tls
+  #     hosts:
+  #       - nextcloud.kube.home
   labels: {}
+  path: /
+  pathType: Prefix
 
 
 # Allow configuration of lifecycle hooks
@@ -60,13 +65,27 @@ lifecycle: {}
   # postStartCommand: []
   # preStopCommand: []
 
+phpClientHttpsFix:
+  enabled: false
+  protocol: https
+
 nextcloud:
   host: nextcloud.kube.home
   username: admin
   password: changeme
+  ## Use an existing secret
+  existingSecret:
+    enabled: false
+    # secretName: nameofsecret
+    # usernameKey: username
+    # passwordKey: password
+    # tokenKey: serverinfo_token
+    # smtpUsernameKey: smtp_username
+    # smtpPasswordKey: smtp_password
   update: 0
+  # If web server is not binding default port, you can define it
+  # containerPort: 8080
   datadir: /var/www/html/data
-  tableprefix:
   persistence:
     subPath:
   mail:
@@ -81,7 +100,7 @@ nextcloud:
       name: user
       password: pass
   # PHP Configuration files
-  # Will be injected in /usr/local/etc/php/conf.d
+  # Will be injected in /usr/local/etc/php/conf.d for apache image and in /usr/local/etc/php-fpm.d when nginx.enabled: true
   phpConfigs: {}
   # Default config files
   # IMPORTANT: Will be used only if you put extra configs, otherwise default will come from nextcloud itself
@@ -144,6 +163,12 @@ nextcloud:
   #        name: nextcloud
   #        key: secret_key
 
+  # Extra init containers that runs before pods start.
+  extraInitContainers: []
+  #  - name: do-something
+  #    image: busybox
+  #    command: ['do', 'something']
+
   # Extra mounts for the pods. Example shown is for connecting a legacy NFS volume
   # to NextCloud pods in Kubernetes. This can then be configured in External Storage
   extraVolumes:
@@ -155,6 +180,13 @@ nextcloud:
   extraVolumeMounts:
   #  - name: nfs
   #    mountPath: "/legacy_data"
+
+  # Extra secuurityContext parameters. For example you may need to define runAsNonRoot directive
+  # extraSecurityContext:
+  #   runAsUser: "33"
+  #   runAsGroup: "33"
+  #   runAsNonRoot: true
+  #   readOnlyRootFilesystem: true
 
 nginx:
   ## You need to set an fpm version of the image for nextcloud if you want to use nginx!
@@ -211,38 +243,50 @@ mariadb:
   ## Whether to deploy a mariadb server to satisfy the applications database requirements. To use an external database set this to false and configure the externalDatabase parameters
   enabled: false
 
-  db:
-    name: nextcloud
-    user: nextcloud
+  auth:
+    database: nextcloud
+    username: nextcloud
     password: changeme
 
-  replication:
-    enabled: false
+  architecture: standalone
 
   ## Enable persistence using Persistent Volume Claims
   ## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
   ##
-  master:
+  primary:
     persistence:
       enabled: false
       # storageClass: ""
       accessMode: ReadWriteOnce
       size: 8Gi
 
+##
+## PostgreSQL chart configuration
+## for more options see https://github.com/bitnami/charts/tree/master/bitnami/postgresql
+##
 postgresql:
   enabled: false
   global:
     postgresql:
-      postgresqlUsername: nextcloud
-      postgresqlPassword: changeme
-      postgresqlDatabase: nextcloud
-  persistence:
-    enabled: false
-    # storageClass: ""
+      auth:
+        username: nextcloud
+        password: changeme
+        database: nextcloud
+  primary:
+    persistence:
+      enabled: false
+      # storageClass: ""
+
+##
+## Redis chart configuration
+## for more options see https://github.com/bitnami/charts/tree/master/bitnami/redis
+##
 
 redis:
   enabled: false
-  usePassword: false
+  auth:
+    enabled: true
+    password: 'changeme'
 
 ## Cronjob to execute Nextcloud background tasks
 ## ref: https://docs.nextcloud.com/server/latest/admin_manual/configuration_server/background_jobs_configuration.html#webcron
@@ -319,26 +363,16 @@ persistence:
   accessMode: ReadWriteOnce
   size: 8Gi
 
-  # In case you want to use dedicated volumes for each mount point, set this to True
-  # This is useful if you are using hostPath volumes with a dockerized kubelet
-  # https://github.com/rancher/rancher/issues/14836
-  # When using 'existingClaim' with 'dedicatedVolumes: True', a claim with the given name
-  # appended with each entry in 'dedicatedVolumesList' is expected.
-  # For example:
-  #   existingClaim: nextcloud
-  # Required existing claims:
-  # - nextcloud-data
-  # - nextcloud-html
-  # ...
-  dedicatedVolumes: False
-  dedicatedVolumesList:
-    - data
-    - html
-    - config
-    - tmp
-    - themes
-    - root
-    - custom-apps
+  ## Use an additional pvc for the data directory rather than a subpath of the default PVC
+  ## Useful to store data on a different storageClass (e.g. on slower disks)
+  nextcloudData:
+    enabled: false
+    subPath:
+    annotations: {}
+    # storageClass: "-"
+    # existingClaim:
+    accessMode: ReadWriteOnce
+    size: 8Gi
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
@@ -357,18 +391,26 @@ resources: {}
 ##
 livenessProbe:
   enabled: true
-  initialDelaySeconds: 30
-  periodSeconds: 15
+  initialDelaySeconds: 10
+  periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
   successThreshold: 1
 readinessProbe:
   enabled: true
-  initialDelaySeconds: 30
-  periodSeconds: 15
+  initialDelaySeconds: 10
+  periodSeconds: 10
   timeoutSeconds: 5
   failureThreshold: 3
   successThreshold: 1
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 30
+  successThreshold: 1
+
 
 ## Enable pod autoscaling using HorizontalPodAutoscaler
 ## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
@@ -394,11 +436,15 @@ metrics:
   replicaCount: 1
   # The metrics exporter needs to know how you serve Nextcloud either http or https
   https: false
+  # Use API token if set, otherwise fall back to password authentication
+  # https://github.com/xperimental/nextcloud-exporter#token-authentication
+  # Currently you still need to set the token manually in your nextcloud install
+  token: ""
   timeout: 5s
 
   image:
     repository: xperimental/nextcloud-exporter
-    tag: v0.3.0
+    tag: 0.5.1
     pullPolicy: IfNotPresent
 
   ## Metrics exporter resource requests and limits
@@ -420,3 +466,40 @@ metrics:
       prometheus.io/scrape: "true"
       prometheus.io/port: "9205"
     labels: {}
+
+  ## Prometheus Operator ServiceMonitor configuration
+  ##
+  serviceMonitor:
+    ## @param metrics.serviceMonitor.enabled Create ServiceMonitor Resource for scraping metrics using PrometheusOperator
+      ##
+    enabled: false
+
+    ## @param metrics.serviceMonitor.namespace Namespace in which Prometheus is running
+    ##
+    namespace: ""
+
+    ## @param metrics.serviceMonitor.jobLabel The name of the label on the target service to use as the job name in prometheus.
+    ##
+    jobLabel: ""
+
+    ## @param metrics.serviceMonitor.interval Interval at which metrics should be scraped
+    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+    ##
+    interval: 30s
+
+    ## @param metrics.serviceMonitor.scrapeTimeout Specify the timeout after which the scrape is ended
+    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#endpoint
+    ##
+    scrapeTimeout: ""
+
+    ## @param metrics.serviceMonitor.labels Extra labels for the ServiceMonitor
+    ##
+    labels: {}
+
+
+rbac:
+  enabled: false
+  serviceaccount:
+    create: true
+    name: nextcloud-serviceaccount
+    annotations: {}

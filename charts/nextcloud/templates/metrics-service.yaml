@@ -4,11 +4,11 @@ kind: Service
 metadata:
   name: {{ template "nextcloud.fullname" . }}-metrics
   labels:
-  labels:
     app.kubernetes.io/name: {{ include "nextcloud.name" . }}
     helm.sh/chart: {{ include "nextcloud.chart" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/component: metrics
     {{- if .Values.metrics.service.labels -}}
     {{ toYaml .Values.metrics.service.labels | nindent 4 }}
     {{- end -}}
@@ -28,4 +28,5 @@ spec:
   selector:
     app.kubernetes.io/name: {{ include "nextcloud.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: metrics
 {{- end }}
