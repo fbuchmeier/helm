@@ -285,7 +285,6 @@ spec:
         - name: nextcloud-main
           mountPath: /var/www/html/themes
           subPath: {{ ternary "themes" (printf "%s/%s" .Values.nextcloud.persistence.subPath "themes") (empty .Values.nextcloud.persistence.subPath) }}
-          mountPath: /var/www/html/themes
         {{- range $key, $value := .Values.nextcloud.configs }}
         - name: nextcloud-config
           mountPath: /var/www/html/config/{{ $key }}
